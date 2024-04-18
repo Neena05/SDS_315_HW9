@@ -1,0 +1,187 @@
+---
+title: " SDS 315 Homework 9"
+date: "2024-01-21"
+output:
+  pdf_document:
+    toc: yes
+---
+
+Name: Neena Varanasi
+
+EID: nv6558
+
+[GitHub Link](https://github.com/Neena05/SDS_315_HW9)
+
+```{r, message = FALSE, echo=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+library(knitr)
+library(mosaic)
+library(MatchIt)
+library(moderndive)
+```
+
+## Problem 1: Get out the vote
+```{r, echo=FALSE, message = FALSE}
+#read the dataset
+turnout = read_csv("turnout.csv")
+
+```
+
+### Part A
+```{r, echo=FALSE, message = FALSE}
+#Part A
+#The proportion of those receiving a GOTV call who voted in 1998.
+prop_received = prop(voted1998 ~ GOTV_call, data=turnout, success=1)
+#prop_received[2]
+
+#The sample proportion of those not receiving a GOTV call who voted in 1998
+#A large-sample 95% confidence interval for the difference in these two proportions
+boot_1998 = do(1000)*diffprop(voted1998==1 ~ GOTV_call, data=resample(turnout))
+ci = confint(boot_1998, level=0.95)
+
+kable(confint(boot_1998, level=0.95))
+
+```
+The proportion of those receiving a GOTV call who voted in 1998 was `r round(prop_received[2], 2)`.
+
+The sample proportion of those not receiving a GOTV call who voted in 1998 was `r round(prop_received[1], 2)`.
+
+The 95% confidence interval for the difference in the two proportions is `r round(ci[2], 2)` to `r round(ci[3], 2)`.
+
+### Part B
+```{r, echo=FALSE, message = FALSE}
+#Part B
+summary_table <- turnout %>%
+  mutate(GOTV_call_label = ifelse(GOTV_call == 1, "Recieved", "Did Not Recieve")) %>% 
+  group_by(GOTV_call_label) %>%
+  summarize(mean_age = mean(AGE), mean_majorpty = mean(MAJORPTY), mean_voted_1996 = mean(voted1996)) %>% 
+  kbl(col.names = c("Get Out the Vote Call","Mean Age", "Mean Party Registration", "Voted in 1996"), booktabs = TRUE, digits = 2) %>%
+  kable_styling(latex_options = "hold_position")
+  
+summary_table
+
+ggplot(turnout) + 
+  geom_boxplot(aes(x=factor(GOTV_call), y=AGE), fill="lightblue") + 
+  coord_flip() +
+  ggtitle("Age and Get Out the Vote Call") +
+  ylab("Age (Years)") +
+  xlab("Reciepient of Get Out the Vote Call") +
+  theme_classic()
+```
+
+### Part C
+```{r, echo=FALSE, message = FALSE}
+#matching
+turnout_matched = matchit(GOTV_call ~ voted1996 + AGE + MAJORPTY, data = turnout, ratio=5) %>%
+  match.data
+
+#prove confounders no longer exist
+summary_table_matched <- turnout_matched %>%
+  mutate(GOTV_call_label = ifelse(GOTV_call == 1, "Recieved", "Did Not Recieve")) %>% 
+  group_by(GOTV_call_label) %>%
+  summarize(mean_age = mean(AGE), mean_majorpty = mean(MAJORPTY), mean_voted_1996 = mean(voted1996)) %>% 
+  kbl(col.names = c("Get Out the Vote Call","Mean Age", "Mean Party Registration", "Voted in 1996"), booktabs = TRUE, digits = 2) %>%
+  kable_styling(latex_options = "hold_position")
+
+summary_table_matched
+
+#Repeat Part A statistics
+prop_voted_2 = prop(voted1998 ~ GOTV_call, data=turnout_matched, success=1)
+
+
+boot_1998_matched = do(10000)*diffprop(voted1998==1 ~ GOTV_call, data=mosaic::resample(turnout_matched))
+kable(confint(boot_1998_matched, level=0.95))
+
+prop.test(voted1998 ~ GOTV_call, data=turnout_matched)
+```
+The proportion of those receiving a GOTV call who voted in 1998 was `r round(prop_voted_2[2], 2)`.
+
+The sample proportion of those not receiving a GOTV call who voted in 1998 was `r round(prop_voted_2[1], 2)`.
+
+What do you conclude about the overall effect of the GOTV call on the likelihood of voting in the 1998 election?
+Due to the 95% confidence interval being between `r round(confint(boot_1998_matched, level=0.95)[2] * 100, 2)`% and `r round(confint(boot_1998_matched, level=0.95)[3] * 100, 2)`%, we can conclude that GOTV likely does not have an effect on the likelihood of voting in the 1998 election. This conclusion is further supported by the p-value of `r round(prop.test(voted1998 ~ GOTV_call, data=turnout_matched)$p.value, 2)`, which is statistically significant since it is less than 0.05.
+
+
+## Problem 2: Manufacturing flaws in circuit boards
+```{r, echo=FALSE, message = FALSE}
+#import the dataset
+solder = read_csv("solder.csv")
+```
+
+### Part A
+```{r, echo=FALSE, message = FALSE}
+ggplot(solder) + 
+  geom_boxplot(aes(x=(skips), y=Opening, fill = Opening)) + 
+  coord_flip() +
+  ggtitle("Opening Size of Solder and Number of Skips") +
+  ylab("Opening Size of Solder (small, medium, or large)") +
+  xlab("Number of Solder Skips") +
+  theme_classic()
+```
+Based on the plot, the smaller opening sized solders have a higher number of skips compared to medium and large sized opening solders. Medium solders still have a higher number of skips than large solders.
+
+```{r, echo=FALSE, message = FALSE}
+ggplot(solder) + 
+  geom_boxplot(aes(x=(skips), y=Solder, fill=Solder)) + 
+  coord_flip() +
+  ggtitle("Age and Get Out the Vote Call") +
+  ylab("Thickness of the Alloy Used (thick or thin)") +
+  xlab("Number of Solder Skips") +
+  theme_classic()
+```
+Based on the plot, the thin alloy solders have a higher number of skips compared to thick alloy solders.
+
+```{r, echo=FALSE, message = FALSE}
+solder %>%
+  group_by(Opening) %>%
+  summarize(skips_proportion = sum(skips) / sum(solder$skips)) %>% 
+  kbl(col.names = c("Opening Size","Percent of Solder Guns with Manufacturing Flaws"), booktabs = TRUE, digits = 2) %>%
+  kable_styling()
+
+solder %>%
+  group_by(Solder) %>%
+  summarize(skips_proportion = sum(skips) / sum(solder$skips)) %>% 
+  kbl(col.names = c("Solder Thickness","Percent of Solder Guns with Manufacturing Flaws"), booktabs = TRUE, digits = 2) %>%
+  kable_styling()
+
+```
+The above tables specifically show the quantitative difference between opening size and number of skips and solder thickness and number of skips. 
+
+
+### Part B
+```{r, echo=FALSE, message = FALSE}
+#Part B
+lm_opening = lm(skips ~ Opening, data=solder)
+#summary(lm_opening)
+#coef(lm_opening) %>% round(0)
+
+
+lm_solder_type = lm(skips ~ Solder, data=solder)
+#summary(lm_solder_type)
+#coef(lm_solder_type) %>% round(0)
+
+lm_opening_type = lm(skips ~ Opening + Solder + Opening:Solder, data=solder)
+#summary(lm_opening_type)
+kable(coef(lm_opening_type) %>% round(0))
+
+#print regression table
+kable(get_regression_table(lm_opening_type, conf.level = 0.95, digits=2))
+
+```
+### Part C
+
+The baseline number of skips for solder guns that neither have a large opening and a thick alloy is 0 skips.
+The main effect for the OpeningM variable is 2 skips. Therefore, having a medium opening is associated with an increase of 2 skips compared to a large opening in isolation.
+
+The main effect for the OpeningS variable is 5 skips. Therefore, having a small opening is associated with an increase of 5 skips compared to a large opening in isolation.
+
+The main effect for the SolderThin variable is 2 skips. Therefore, having a thin alloy is associated with an increase of 2 skips compared to a thick alloy in isolation.
+The interaction effect for OpeningM and SolderThin is -1. In other words, having the effect of a medium opening and thin alloy decreases the number of skips by 1 than what you would expect from summing the individual "isolated" effects of the two variables.
+
+The interaction effect for OpeningS and SolderThin is 10. In other words, having the effect of a small opening and thin alloy increases the number of skips by 10 than what you would expect from summing the individual "isolated" effects of the two variables..
+
+
+### Part D
+In order to minimize the number of skips, I would recommend a medium opening and a thin alloy thickness as the interaction effect demonstrated 1 fewer skips than what you would expect from a large, thick solder in isolation.
